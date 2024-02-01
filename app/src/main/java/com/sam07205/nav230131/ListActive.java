@@ -1,24 +1,35 @@
 package com.sam07205.nav230131;
 
+import android.annotation.SuppressLint;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
+import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.android.volley.Cache;
@@ -37,8 +48,19 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Callable;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class ListActive extends AppCompatActivity implements View.OnClickListener {
 
@@ -49,8 +71,10 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
     private Button btnNextPage;
     private TextView textNowPage;
 
+    private ThreadPoolExecutor imageLoadThreadExec;
     private int TotalNum = 1;
     private int nowPage = 1;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +107,8 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
         textNowPage = findViewById(R.id.textNowPage);
 
         findViewById(R.id.textNowPage).setOnClickListener(this);
+
+        imageLoadThreadExec = new ThreadPoolExecutor(1, 20, 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>(10));
     }
 
     private void reqPage(int pageIndex, Callable<Void> afterResponse) {
@@ -115,19 +141,18 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
     }
 
     private void handleResponse(JSONObject response) {
-        JSONObject jsonobji;
-        ArrayList<String> items = new ArrayList<>();
+        JSONObject jsonObji;
+        ArrayList<itemTag> items = new ArrayList<>();
         try {
             JSONArray dataBody = response.getJSONArray("data");
             for (int i = 0; i < dataBody.length(); i++) {
-                jsonobji = dataBody.getJSONObject(i);
-                items.add(jsonobji.getString("tagName"));
+                jsonObji = dataBody.getJSONObject(i);
+                itemTag itemtag = new itemTag(jsonObji);
+                items.add(itemtag);
+                Log.i("REQC", jsonObji.toString());
             }
-
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                    ListActive.this,
-                    android.R.layout.simple_list_item_1, items);
-            mListView.setAdapter(adapter);
+            itemAdapter mAdapter = new itemAdapter(this, items);
+            mListView.setAdapter(mAdapter);
             mProgressBar.setVisibility(View.INVISIBLE);
             TotalNum = response.getInt("total") / 10 + (response.getInt("total") % 10 != 0 ? 1 : 0);
             textNowPage.setText(nowPage + " / " + TotalNum);
@@ -136,6 +161,63 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
             throw new RuntimeException(e);
         }
     }
+
+    public class itemAdapter extends ArrayAdapter<itemTag> {
+
+        Context mContext;
+        List<itemTag> tagList;
+
+        public itemAdapter(@NonNull Context context, @NonNull List<itemTag> list) {
+            super(context, 0, list);
+            mContext = context;
+            tagList = list;
+        }
+
+        @NonNull
+        @Override
+        public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
+            View listItem = convertView;
+            if (listItem == null)
+                listItem = LayoutInflater.from(mContext).inflate(R.layout.list_item, parent, false);
+            itemTag currentTag = tagList.get(position);
+            ImageView image = (ImageView) listItem.findViewById(R.id.itemTagImage);
+            TextView textTagID = listItem.findViewById(R.id.itemTagID);
+            textTagID.setText(String.valueOf(currentTag.tagtId));
+            imageLoadThreadExec.execute(() -> {
+                URL myUrl = null;
+                try {
+                    myUrl = new URL(currentTag.tagImage);
+                    InputStream inputStream = (InputStream) myUrl.getContent();
+                    Drawable drawable = Drawable.createFromStream(inputStream, null);
+                    ListActive.this.runOnUiThread(() -> {
+                        image.setImageDrawable(drawable);
+                    });
+
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+
+            return listItem;
+        }
+
+    }
+
+    public class itemTag {
+        int tagtId;
+        String tagName;
+        int tagClick;
+        String tagImage;
+
+        public itemTag(JSONObject gJson) throws JSONException {
+            tagtId = gJson.getInt("tagtId");
+            tagName = gJson.getString("tagName");
+            tagClick = gJson.getInt("tagClick");
+            tagImage = gJson.getString("tagImage");
+        }
+    }
+
 
     @Override
     public void onClick(View v) {
@@ -162,6 +244,7 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
                 .setTitle(R.string.list_Dialog_GoTo_Title)
                 .setView(mLayout)
                 .setPositiveButton(R.string.list_Dialog_GoTo_BTN_OK, new DialogInterface.OnClickListener() {
+                    @SuppressLint("DefaultLocale")
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         try {
