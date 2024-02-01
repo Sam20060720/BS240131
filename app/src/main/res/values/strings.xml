@@ -9,8 +9,10 @@
     <string name="list_Btn_Logout">登出</string>
     <string name="list_Btn_Next_Page">下一頁</string>
     <string name="list_Btn_Prev_Page">上一頁</string>
+    <string name="list_Dialog_GoTo_Title">輸入頁數</string>
     <string name="list_Dialog_GoTo_inp">輸入頁數</string>
     <string name="list_Dialog_GoTo_BTN_Cancel">取消</string>
     <string name="list_Dialog_GoTo_BTN_OK">前往</string>
+    <string name="list_Dialog_GoTo_Toast_ERR">輸入的頁數必須介於</string>
 
 </resources>

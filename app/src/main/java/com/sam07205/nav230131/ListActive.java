@@ -1,18 +1,23 @@
 package com.sam07205.nav230131;
 
 import android.app.Dialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -26,6 +31,7 @@ import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
 import com.android.volley.toolbox.HurlStack;
 import com.android.volley.toolbox.JsonObjectRequest;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputLayout;
 
 import org.json.JSONArray;
@@ -33,6 +39,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.concurrent.Callable;
 
 public class ListActive extends AppCompatActivity implements View.OnClickListener {
 
@@ -59,10 +66,13 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
         requestQueue = new RequestQueue(cache, network);
         requestQueue.start();
 
-        reqPage(1);
+        reqPage(1, null);
 
         Button btnLogout = findViewById(R.id.btnLogout);
-        btnLogout.setText(getIntent().getStringExtra("account"));
+        String getName = getIntent().getStringExtra("account");
+        assert getName != null;
+        getName = getName.length() > 8 ? getName.substring(0, 8) + ".." : getName;
+        btnLogout.setText(getName);
         btnLogout.setOnClickListener(this);
 
         btnPrevPage = findViewById(R.id.btnPrevPage);
@@ -76,14 +86,23 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
         findViewById(R.id.textNowPage).setOnClickListener(this);
     }
 
-    private void reqPage(int pageIndex) {
+    private void reqPage(int pageIndex, Callable<Void> afterResponse) {
+
         mProgressBar.setVisibility(View.VISIBLE);
+
         String url = "https://test-youthtycg.edwardforce.tw/app/api/tag/lists?page=" + pageIndex;
         JsonObjectRequest mJsonArrReq = new JsonObjectRequest(Request.Method.GET, url, null,
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
                         handleResponse(response);
+                        if (afterResponse != null) {
+                            try {
+                                afterResponse.call();
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
                     }
                 },
                 new Response.ErrorListener() {
@@ -111,7 +130,7 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
                     android.R.layout.simple_list_item_1, items);
             mListView.setAdapter(adapter);
             mProgressBar.setVisibility(View.INVISIBLE);
-            TotalNum = response.getInt("total");
+            TotalNum = response.getInt("total") / 10 + (response.getInt("total") % 10 != 0 ? 1 : 0);
             textNowPage.setText(nowPage + " / " + TotalNum);
             Log.i("REQC", String.valueOf(TotalNum));
         } catch (JSONException e) {
@@ -126,17 +145,56 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
         } else if (v.getId() == R.id.btnLogout) {
             showPopupMenu(v);
         } else if (v.getId() == R.id.textNowPage) {
-            final Dialog dialog = new Dialog(ListActive.this);
-            dialog.setContentView(R.layout.list_page_goto_dialog);
-            dialog.setTitle("前往頁數");
-            
-            TextInputLayout text = (TextInputLayout) dialog.findViewById(R.id.inputPage);
-            int width = (int) (getResources().getDisplayMetrics().widthPixels * 0.90);
-            int height = (int) (getResources().getDisplayMetrics().heightPixels * 0.20);
-            dialog.getWindow().setLayout(width, height);
-            dialog.show();
-
+            showPageDialog();
         }
+    }
+
+    private void showPageDialog() {
+        final FrameLayout mLayout = new FrameLayout(this);
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(nowPage));
+        input.setHint(R.string.list_Dialog_GoTo_inp);
+        mLayout.addView(input);
+        mLayout.setPadding(30, 0, 30, 0);
+
+        final MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(ListActive.this)
+                .setTitle(R.string.list_Dialog_GoTo_Title)
+                .setView(mLayout)
+                .setPositiveButton(R.string.list_Dialog_GoTo_BTN_OK, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        try {
+                            btnPrevPage.setEnabled(false);
+                            btnNextPage.setEnabled(false);
+
+                            int inpPage = Integer.parseInt(String.valueOf(input.getText()));
+                            if (inpPage == nowPage)
+                                return;
+                            if (inpPage <= TotalNum && inpPage >= 1) {
+                                nowPage = inpPage;
+                                reqPage(nowPage, () -> {
+                                    btnPrevPage.setEnabled(nowPage != 1);
+                                    btnNextPage.setEnabled(nowPage != TotalNum);
+                                    return null;
+                                });
+                                return;
+                            }
+                        } catch (Exception ignored) {
+
+                        }
+                        Toast.makeText(ListActive.this, String.format("%s %d~%d", getString(R.string.list_Dialog_GoTo_Toast_ERR), 1, TotalNum), Toast.LENGTH_SHORT).show();
+
+
+                    }
+                })
+                .setNegativeButton(R.string.list_Dialog_GoTo_BTN_Cancel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                });
+        dialog.show();
     }
 
     private void handlePageButtonClick(View v) {
@@ -146,9 +204,15 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
             nowPage = Math.max(1, nowPage - 1);
         }
 
-        reqPage(nowPage);
-        btnPrevPage.setEnabled(nowPage != 1);
-        btnNextPage.setEnabled(nowPage != TotalNum);
+
+        btnPrevPage.setEnabled(false);
+        btnNextPage.setEnabled(false);
+        reqPage(nowPage, () -> {
+            btnPrevPage.setEnabled(nowPage != 1);
+            btnNextPage.setEnabled(nowPage != TotalNum);
+            return null;
+        });
+
     }
 
     private void showPopupMenu(View v) {
