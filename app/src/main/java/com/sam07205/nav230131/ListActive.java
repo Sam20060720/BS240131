@@ -47,6 +47,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.w3c.dom.Text;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -182,7 +183,11 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
             itemTag currentTag = tagList.get(position);
             ImageView image = (ImageView) listItem.findViewById(R.id.itemTagImage);
             TextView textTagID = listItem.findViewById(R.id.itemTagID);
+            TextView textTagName = listItem.findViewById(R.id.itemTagName);
+            TextView textTagClick = listItem.findViewById(R.id.itemTagClick);
             textTagID.setText(String.valueOf(currentTag.tagtId));
+            textTagName.setText(String.valueOf(currentTag.tagName));
+            textTagClick.setText(String.valueOf(currentTag.tagClick));
             imageLoadThreadExec.execute(() -> {
                 URL myUrl = null;
                 try {
