@@ -156,7 +156,7 @@ public class ListActive extends AppCompatActivity implements View.OnClickListene
             mListView.setAdapter(mAdapter);
             mProgressBar.setVisibility(View.INVISIBLE);
             TotalNum = response.getInt("total") / 10 + (response.getInt("total") % 10 != 0 ? 1 : 0);
-            textNowPage.setText(nowPage + " / " + TotalNum);
+            textNowPage.setText(String.format("%d / %d", nowPage, TotalNum));
             Log.i("REQC", String.valueOf(TotalNum));
         } catch (JSONException e) {
             throw new RuntimeException(e);

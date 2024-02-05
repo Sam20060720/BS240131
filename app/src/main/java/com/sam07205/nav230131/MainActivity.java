@@ -26,8 +26,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     TextInputLayout textInputAccount;
     TextInputLayout textInpPassword;
 
-    TextWatcher mTextWatcher;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
